@@ -63,3 +63,4 @@ app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), check_message)
 
 # Botu çalıştır
 app.run_polling()
+
