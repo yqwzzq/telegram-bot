@@ -1,61 +1,65 @@
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+import os
 from telegram import Update
-import logging
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
-TOKEN = "7723435569:AAEGxU86nfrZ6VzpzVTGkyHIdCjzWuFcJrA"
-ADMIN_ID = 6795286721  # SENİN KESİN ID'N
+# .env dosyasından tokeni çek
+TOKEN = os.getenv("BOT_TOKEN")
 
-# ————————————————————————
-# KÜFÜR LİSTESİ YÜKLEME
-# ————————————————————————
+# Sadece admin kullanıcı adı
+ADMIN_USERNAME = "yqwzzq"
+
+# Küfür listesi dosyadan yükleniyor
 def load_bad_words():
     with open("kufur_listesi.txt", "r", encoding="utf-8") as f:
-        return [w.strip().lower() for w in f.readlines()]
+        return [line.strip().lower() for line in f.readlines()]
 
 bad_words = load_bad_words()
+# Kullanıcı istatistikleri (küfür sayısı)
+user_stats = {}
 
-# ————————————————————————
-# SADECE ADMIN KULLANABİLİR KONTROLÜ
-# ————————————————————————
-def admin_only(func):
-    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        user_id = update.effective_user.id
-        if user_id != ADMIN_ID:
-            await update.message.reply_text("❌ Bu bot yalnızca admin tarafından kullanılabilir.")
-            return
-        return await func(update, context)
-    return wrapper
-
-# ————————————————————————
-# /start KOMUTU
-# ————————————————————————
-@admin_only
+# /start komutu
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Ajan01 aktif. Merhaba efendim Yavuz.")
-
-# ————————————————————————
-# KÜFÜR FİLTRESİ (HERKES İÇİN ÇALIŞIR)
-# ————————————————————————
-async def kufur_kontrol(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message:
+    if update.effective_user.username != ADMIN_USERNAME:
+        await update.message.reply_text("❌ Bu bot yalnızca admin tarafından kullanılabilir.")
         return
+    await update.message.reply_text(f"Ajan01 aktif. Merhaba {ADMIN_USERNAME}!")
 
+# Mesaj kontrolü
+async def check_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    username = user.username if user.username else str(user.id)
     text = update.message.text.lower()
 
+    # Küfür kontrolü
     for word in bad_words:
         if word in text:
-            try:
-                await update.message.delete()  # Mesajı sil
-            except:
-                pass
-            return  # Çık, hiçbir mesaj göstermesin
+            await update.message.delete()
+            if username == ADMIN_USERNAME:
+                await update.message.reply_text("Admin mesajı silinmedi.")
+            else:
+                # İstatistik güncelle
+                user_stats[username] = user_stats.get(username, 0) + 1
+            return
 
-# ————————————————————————
-# BOTU BAŞLAT
-# ————————————————————————
+# /stats komutu
+async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.username != ADMIN_USERNAME:
+        await update.message.reply_text("❌ Bu bot yalnızca admin tarafından kullanılabilir.")
+        return
+
+    if not user_stats:
+        await update.message.reply_text("Henüz istatistik yok.")
+    else:
+        stats_text = "\n".join([f"{user}: {count} küfür" for user, count in user_stats.items()])
+        await update.message.reply_text(f"📝 Kullanıcı istatistikleri:\n{stats_text}")
+
+# Uygulama oluştur
 app = ApplicationBuilder().token(TOKEN).build()
 
+# Handler ekle
 app.add_handler(CommandHandler("start", start))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, kufur_kontrol))
+app.add_handler(CommandHandler("stats", stats))
+app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), check_message))
 
+# Botu çalıştır
 app.run_polling()
