@@ -1,61 +1,59 @@
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
-from telegram import Update
-import logging
+import os
+from telegram.ext import ApplicationBuilder, MessageHandler, filters, CommandHandler
 
-TOKEN = "7723435569:AAEGxU86nfrZ6VzpzVTGkyHIdCjzWuFcJrA"
-ADMIN_ID = 6795286721  # SENİN KESİN ID'N
+# SADECE SENİN ID — tek admin sensin
+ADMIN_IDS = {851176709}
 
-# ————————————————————————
-# KÜFÜR LİSTESİ YÜKLEME
-# ————————————————————————
+# TOKENİN EKLENDİ
+TOKEN = "7723435569:AAEcGZIJjIU2UmhSVt6ds5EyM74Fv-5iKXQ"
+
+# KÜFÜR LİSTESİYİ OKUYAN FONKSİYON
 def load_bad_words():
-    with open("kufur_listesi.txt", "r", encoding="utf-8") as f:
-        return [w.strip().lower() for w in f.readlines()]
+    if os.path.exists("kufur_listesi.txt"):
+        with open("kufur_listesi.txt", "r", encoding="utf-8") as f:
+            return [w.strip().lower() for w in f.readlines()]
+    return []
 
-bad_words = load_bad_words()
+BAD_WORDS = load_bad_words()
 
-# ————————————————————————
-# SADECE ADMIN KULLANABİLİR KONTROLÜ
-# ————————————————————————
-def admin_only(func):
-    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        user_id = update.effective_user.id
-        if user_id != ADMIN_ID:
-            await update.message.reply_text("❌ Bu bot yalnızca admin tarafından kullanılabilir.")
-            return
-        return await func(update, context)
-    return wrapper
-
-# ————————————————————————
 # /start KOMUTU
-# ————————————————————————
-@admin_only
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Ajan01 aktif. Merhaba efendim Yavuz.")
+async def start(update, context):
+    user_id = update.effective_user.id
+    if user_id not in ADMIN_IDS:
+        await update.message.reply_text("❌ Bu bot yalnızca admin tarafından kullanılabilir.")
+        return
+    
+    await update.message.reply_text("👑 Bot aktif aşkım. Her şey kontrolüm altında 💛")
 
-# ————————————————————————
-# KÜFÜR FİLTRESİ (HERKES İÇİN ÇALIŞIR)
-# ————————————————————————
-async def kufur_kontrol(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# KÜFÜR FİLTRESİ
+async def filter_bad_words(update, context):
+    user_id = update.effective_user.id
     if not update.message:
         return
 
     text = update.message.text.lower()
 
-    for word in bad_words:
-        if word in text:
-            try:
-                await update.message.delete()  # Mesajı sil
-            except:
-                pass
-            return  # Çık, hiçbir mesaj göstermesin
+    # Küfür içeriyor mu bak
+    if any(bad in text for bad in BAD_WORDS):
+        # Mesajı sil
+        try:
+            await update.message.delete()
+        except:
+            pass
 
-# ————————————————————————
-# BOTU BAŞLAT
-# ————————————————————————
+        # Adminse sadece uyar
+        if user_id in ADMIN_IDS:
+            await update.message.reply_text("⚠️ Küfür tespit edildi ama sen admin olduğun için silmedim.")
+        else:
+            await update.message.reply_text("❌ Küfür yasak.")
+
+# UYGULAMA
 app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, kufur_kontrol))
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, filter_bad_words))
 
-app.run_polling()
+if __name__ == "__main__":
+    print("Bot çalışıyor...")
+    app.run_polling()
+
