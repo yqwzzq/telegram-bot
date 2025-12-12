@@ -1,23 +1,25 @@
 import os
 import asyncio
 from datetime import datetime
-from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram import Update, Bot
+from telegram.ext import CommandHandler, MessageHandler, filters, ContextTypes
 from dotenv import load_dotenv
 
 load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
+if not TOKEN:
+    raise ValueError("BOT_TOKEN bulunamadı!")
+
 ADMIN_ID = 6795286721
 
 # Küfür listesi
-def load_bad_words():
-    try:
-        with open("kufur_listesi.txt", "r", encoding="utf-8") as f:
-            return [line.strip().lower() for line in f.readlines()]
-    except:
-        return []
+try:
+    with open("kufur_listesi.txt", "r", encoding="utf-8") as f:
+        bad_words = [line.strip().lower() for line in f]
+except FileNotFoundError:
+    bad_words = []
+    print("kufur_listesi.txt bulunamadı!")
 
-bad_words = load_bad_words()
 user_stats = {}
 bot_active = True
 
@@ -53,14 +55,14 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         await safe_delete(update.message)
         return
-    stats_lines = []
+    lines = []
     for uid, info in user_stats.items():
         if uid == ADMIN_ID:
             continue
         nick_part = f"@{info['nick']} " if info['nick'] else ""
         join_str = info['join_date'].strftime("%Y-%m-%d %H:%M:%S")
-        stats_lines.append(f"{nick_part}(ID: {uid} - {info['swear_count']} küfür) - Giriş: {join_str}")
-    await update.message.reply_text("İstatistikler:\n" + ("\n".join(stats_lines) if stats_lines else "Henüz istatistik yok."))
+        lines.append(f"{nick_part}(ID: {uid} - {info['swear_count']} küfür) - Giriş: {join_str}")
+    await update.message.reply_text("İstatistikler:\n" + ("\n".join(lines) if lines else "Henüz istatistik yok."))
 
 async def check_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global user_stats
@@ -81,8 +83,9 @@ async def check_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 user_stats[user.id]["swear_count"] += 1
             return
 
-# Yeni yapı: Application yerine Application(asyncio)
-async def main():
+# Saf async polling fonksiyonu
+async def run_bot():
+    from telegram.ext import Application
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("panic", panic))
@@ -91,8 +94,9 @@ async def main():
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), check_message))
     await app.initialize()
     await app.start()
-    await app.updater.start_polling()  # eski Updater yerine bu çağrı kullanılacak
-    await app.updater.idle()  # botu açık tutar
+    print("Bot çalışıyor...")
+    await app.updater.start_polling(drop_pending_updates=True)
+    await app.updater.idle()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(run_bot())
