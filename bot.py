@@ -75,7 +75,7 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     stats_text = "\n".join(stats_lines)
-    await update.message.reply_text(f"📝 Kullanıcı istatistikleri:\n{stats_text}")
+    await update.message.reply_text(f"İstatistikler:\n{stats_text}")
 
 # Mesaj kontrolü
 async def check_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
